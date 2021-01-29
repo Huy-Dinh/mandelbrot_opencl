@@ -118,13 +118,13 @@ int main( int argc, char ** argv )
     std::cout << "Maximum number of work items in a work group: " << localWorkSize << std::endl;
 
     /* Execute the kernel */
-    globalWorkSize = count;
+    globalWorkSize = count / 4;
     err = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL);
     CATCH_CL_ERROR(err);
 
     /* Wait for the command queue to finish */
     clFinish(commandQueue);
-
+    std::cout << "Done" << std::endl;
     /* Read back the results from the device to verify the output */
     err = clEnqueueReadBuffer( commandQueue, outputBuffer, CL_TRUE, 0, count, &results[0], 0, NULL, NULL );  
     if (err != CL_SUCCESS)
@@ -132,7 +132,7 @@ int main( int argc, char ** argv )
         printf("Error: Failed to read output array! %d\n", err);
         exit(1);
     }
-    
+
     /* TODO: Encode the image and cleanup */
     saveImageAsPNG(&results[0], width, height, "mandelbrot.png");
 

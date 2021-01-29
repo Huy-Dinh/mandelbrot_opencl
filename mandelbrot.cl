@@ -34,70 +34,52 @@
   * }
   */
 
-float complexMultiplicationReal(
-  float realLeft,
-  float imagLeft,
-  float realRight,
-  float imagRight)
+typedef struct Complex {   
+	 float real;   
+	 float imag;   
+ } Complex; 
+
+Complex complexMultiplication(
+  Complex left,
+  Complex right)
 {
-  return ((realLeft * realRight) - (imagLeft * imagRight));
+  Complex returnValue;
+  returnValue.real = left.real * right.real - left.imag * right.imag;
+  returnValue.imag = left.real * right.imag + left.imag * right.real;
+  return returnValue;
 }
 
-float complexMultiplicationImag(
-  float realLeft,
-  float imagLeft,
-  float realRight,
-  float imagRight)
+float complexAbs(Complex complexNumber)
 {
-  return imagLeft * realRight + imagRight * realLeft;
+  return sqrt(complexNumber.real*complexNumber.real + complexNumber.imag*complexNumber.imag);
 }
 
-float complexSquaredReal(
-  float real,
-  float imag)
+Complex complexSquared(Complex complexNumber)
 {
-  return complexMultiplicationReal(real, imag, real, imag);
-}
-
-float complexSquaredImag(
-  float real,
-  float imag)
-{
-  return complexMultiplicationImag(real, imag, real, imag);
-}
-
-float complexAbs(
-  float real,
-  float imag)
-{
-  return sqrt(real*real + imag*imag);
+  return complexMultiplication(complexNumber, complexNumber);
 }
 
 float mandelbrot(
-  float real,
-  float imag,
+  Complex c,
   float max_abs,
   int max_iter)
 {
   float n = 0;
   float dist = 0;
-  float local_real = 0;
-  float local_imag = 0;
-  float last_local_real = 0;
-  float last_local_imag = 0;
+
+  Complex zn;
+  zn.real = 0;
+  zn.imag = 0;
+
   while (n < max_iter && dist <= max_abs)
   {
     n = n + 1;
-    local_real = complexSquaredReal(last_local_real, last_local_imag);
-    local_imag = complexSquaredImag(last_local_real, last_local_imag);
 
-    local_real = local_real + real;
-    local_imag = local_imag + imag;
+    zn = complexSquared(zn);
+    zn.real = zn.real + c.real;
+    zn.imag = zn.imag + c.imag;
 
-    dist = complexAbs(local_real, local_imag);
-
-    last_local_real = local_real;
-    last_local_real = local_imag;
+    dist = complexAbs(zn);
   }
   return n;
 }
@@ -119,11 +101,12 @@ kernel void solve_mandelbrot(
   int y = id / width;
   int x = id - y * width;
 
-  float real = x0 + sx * (x + 0 - width / 2);
-  float imag = y0 + sy * (y + 0 - height / 2);
+  Complex c;
+  c.real = x0 + sx * (x - width / 2);
+  c.imag = y0 + sy * (y - height / 2);
 
-  float n = mandelbrot(real, imag, max_abs, max_iter);
-  unsigned char a = 255 - (n / max_iter) * 255;
+  float n = mandelbrot(c, max_abs, max_iter);
+  unsigned char a = 255 - ((n / max_iter) * 255);
 
   result[4 * width * y + 4 * x + 0] = a; // R
   result[4 * width * y + 4 * x + 1] = a; // G

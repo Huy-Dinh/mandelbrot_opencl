@@ -58,6 +58,51 @@ int main( int argc, char ** argv )
     /* Lets check what device we are using */
     printDeviceName(device);
 
+    /* Create a context */
+    cl_context context = clCreateContext(0, 1, &device, NULL, NULL, &err);
+    CATCH_CL_ERROR(err);
+    /* Create a command queue */
+    cl_command_queue commands = clCreateCommandQueue(context, device, 0, &err);
+    CATCH_CL_ERROR(err);
+
+    /* Read the program source */
+    std::ifstream sourceFile("mandelbrot.cl");
+    std::string sourceCodeString( std::istreambuf_iterator<char>(sourceFile), (std::istreambuf_iterator<char>()));
+    const char* sourceCode = sourceCodeString.c_str();
+    std::cout << sourceCodeString << std::endl;
+
+    /* Create the program from the source code */
+    cl_program program = clCreateProgramWithSource(context, 1, (const char **) &sourceCode, NULL, &err);
+    CATCH_CL_ERROR(err);
+
+    /* Build the program executable */
+    err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    CATCH_CL_ERROR(err);
+
+    /* Create kernel */
+    cl_kernel kernel = clCreateKernel(program, "solve_mandelbrot", &err);
+     CATCH_CL_ERROR(err);
+
+    /* Create output buffer */
+    cl_mem output = clCreateBuffer(context, CL_MEM_WRITE_ONLY, width * height * 4, NULL, NULL);
+    if (!output)
+    {
+        std::cout << "Failed to allocate output memory for the kernel" << std::endl;
+        exit(1);
+    }
+
+    /* Set arguments */
+    err = 0;
+    err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &output);
+    err |= clSetKernelArg(kernel, 1, sizeof(int), &height);
+    err |= clSetKernelArg(kernel, 2, sizeof(int), &width);
+    err |= clSetKernelArg(kernel, 3, sizeof(int), &max_iter);
+    err |= clSetKernelArg(kernel, 4, sizeof(float), &max_abs);
+    if (err)
+    {
+        std::cout << "Something went wrong when setting kernel arguments" << std::endl;
+        exit(1);
+    }
     /**
      * TODO extend this template to compute the mandelbrot set with a OpenCL kernel.
      * Then transfer the resulting image back to the host and store it as png.

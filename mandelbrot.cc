@@ -36,7 +36,7 @@ int main( int argc, char ** argv )
     constexpr float max_abs = 2.0;
     constexpr size_t count = width * height * 4;
     
-    std::vector<unsigned char> results(count, 0);
+    std::vector<unsigned char> resultVector(count);
     /**
      * Check for a OpenCL capable device  
      */
@@ -61,7 +61,7 @@ int main( int argc, char ** argv )
     printDeviceName(device);
 
     /**
-     * TODO extend this template to compute the mandelbrot set with a OpenCL kernel.
+     * extend this template to compute the mandelbrot set with a OpenCL kernel.
      * Then transfer the resulting image back to the host and store it as png.
      */
     /* Create a context */
@@ -104,11 +104,7 @@ int main( int argc, char ** argv )
     err |= clSetKernelArg(kernel, 2, sizeof(int), &width);
     err |= clSetKernelArg(kernel, 3, sizeof(int), &max_iter);
     err |= clSetKernelArg(kernel, 4, sizeof(float), &max_abs);
-    if (err)
-    {
-        std::cout << "Something went wrong when setting kernel arguments" << std::endl;
-        exit(1);
-    }
+    CATCH_CL_ERROR(err);
 
     size_t localWorkSize, globalWorkSize;
     /* Get maximum work group size, these work items can run concurrently */
@@ -125,16 +121,20 @@ int main( int argc, char ** argv )
     /* Wait for the command queue to finish */
     clFinish(commandQueue);
     std::cout << "Done" << std::endl;
-    /* Read back the results from the device to verify the output */
-    err = clEnqueueReadBuffer( commandQueue, outputBuffer, CL_TRUE, 0, count, &results[0], 0, NULL, NULL );  
-    if (err != CL_SUCCESS)
-    {
-        printf("Error: Failed to read output array! %d\n", err);
-        exit(1);
-    }
 
-    /* TODO: Encode the image and cleanup */
-    saveImageAsPNG(&results[0], width, height, "mandelbrot.png");
+    /* Read back the result to the array */
+    err = clEnqueueReadBuffer( commandQueue, outputBuffer, CL_TRUE, 0, count, resultVector.data(), 0, NULL, NULL );  
+    CATCH_CL_ERROR(err);
+
+    /* Encode the image and cleanup */
+    saveImageAsPNG(resultVector.data(), width, height, "mandelbrot.png");
+
+    /* Be a good memory manager and clean up after myself */
+    clReleaseMemObject(outputBuffer);
+    clReleaseProgram(program);
+    clReleaseKernel(kernel);
+    clReleaseCommandQueue(commandQueue);
+    clReleaseContext(context);
 
     return 0;
 }

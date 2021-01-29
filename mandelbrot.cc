@@ -34,7 +34,9 @@ int main( int argc, char ** argv )
     constexpr int width = 2048, height = 2048;
     constexpr int max_iter = 350;
     constexpr float max_abs = 2.0;
-
+    constexpr size_t count = width * height * 4;
+    
+    std::vector<unsigned char> results(count, 0);
     /**
      * Check for a OpenCL capable device  
      */
@@ -58,11 +60,15 @@ int main( int argc, char ** argv )
     /* Lets check what device we are using */
     printDeviceName(device);
 
+    /**
+     * TODO extend this template to compute the mandelbrot set with a OpenCL kernel.
+     * Then transfer the resulting image back to the host and store it as png.
+     */
     /* Create a context */
     cl_context context = clCreateContext(0, 1, &device, NULL, NULL, &err);
     CATCH_CL_ERROR(err);
     /* Create a command queue */
-    cl_command_queue commands = clCreateCommandQueue(context, device, 0, &err);
+    cl_command_queue commandQueue = clCreateCommandQueue(context, device, 0, &err);
     CATCH_CL_ERROR(err);
 
     /* Read the program source */
@@ -81,19 +87,19 @@ int main( int argc, char ** argv )
 
     /* Create kernel */
     cl_kernel kernel = clCreateKernel(program, "solve_mandelbrot", &err);
-     CATCH_CL_ERROR(err);
+    CATCH_CL_ERROR(err);
 
     /* Create output buffer */
-    cl_mem output = clCreateBuffer(context, CL_MEM_WRITE_ONLY, width * height * 4, NULL, NULL);
-    if (!output)
+    cl_mem outputBuffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, count, NULL, NULL);
+    if (!outputBuffer)
     {
         std::cout << "Failed to allocate output memory for the kernel" << std::endl;
         exit(1);
     }
 
-    /* Set arguments */
+    /* Pass arguments onto the program */
     err = 0;
-    err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &output);
+    err |= clSetKernelArg(kernel, 0, sizeof(cl_mem), &outputBuffer);
     err |= clSetKernelArg(kernel, 1, sizeof(int), &height);
     err |= clSetKernelArg(kernel, 2, sizeof(int), &width);
     err |= clSetKernelArg(kernel, 3, sizeof(int), &max_iter);
@@ -103,13 +109,32 @@ int main( int argc, char ** argv )
         std::cout << "Something went wrong when setting kernel arguments" << std::endl;
         exit(1);
     }
-    /**
-     * TODO extend this template to compute the mandelbrot set with a OpenCL kernel.
-     * Then transfer the resulting image back to the host and store it as png.
-     */
 
+    size_t localWorkSize, globalWorkSize;
+    /* Get maximum work group size, these work items can run concurrently */
+    err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(localWorkSize), &localWorkSize, NULL);
+    CATCH_CL_ERROR(err);
+
+    std::cout << "Maximum number of work items in a work group: " << localWorkSize << std::endl;
+
+    /* Execute the kernel */
+    globalWorkSize = count;
+    err = clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, &globalWorkSize, &localWorkSize, 0, NULL, NULL);
+    CATCH_CL_ERROR(err);
+
+    /* Wait for the command queue to finish */
+    clFinish(commandQueue);
+
+    /* Read back the results from the device to verify the output */
+    err = clEnqueueReadBuffer( commandQueue, outputBuffer, CL_TRUE, 0, count, &results[0], 0, NULL, NULL );  
+    if (err != CL_SUCCESS)
+    {
+        printf("Error: Failed to read output array! %d\n", err);
+        exit(1);
+    }
+    
     /* TODO: Encode the image and cleanup */
-    // saveImageAsPNG(image, width, height, "mandelbrot.png");
+    saveImageAsPNG(&results[0], width, height, "mandelbrot.png");
 
     return 0;
 }

@@ -40,5 +40,6 @@ kernel void solve_mandelbrot(
     const int max_iter, 
     const float max_abs)
 {
-
+  int id = get_global_id(0);
+  result[id] = id;
 }
